@@ -1,4 +1,4 @@
-в#!/bin/bash
+#!/bin/bash
 set -e
 
 # ============================================================
@@ -39,9 +39,7 @@ fi
 # --- Установка docker compose plugin ---
 if ! docker compose version &> /dev/null; then
   echo -e "${YELLOW}Устанавливаю Docker Compose...${NC}"
-  apt-get install -y docker-compose-plugin 2>/dev/null || \
-    curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
-      -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose
+  apt-get install -y docker-compose-plugin 2>/dev/null || true
 fi
 
 # --- Запрос OpenRouter API ключа ---
@@ -49,7 +47,7 @@ echo ""
 echo -e "${YELLOW}Нужен OpenRouter API ключ.${NC}"
 echo -e "Получи бесплатно на: ${BLUE}https://openrouter.ai/keys${NC}"
 echo ""
-read -p "Вставь OpenRouter API ключ: " OPENROUTER_KEY
+read -rp "Вставь OpenRouter API ключ: " OPENROUTER_KEY
 
 if [ -z "$OPENROUTER_KEY" ]; then
   echo -e "${RED}Ключ не введён. Установка прервана.${NC}"
@@ -57,7 +55,7 @@ if [ -z "$OPENROUTER_KEY" ]; then
 fi
 
 # --- Генерация gateway токена ---
-GATEWAY_TOKEN=$(openssl rand -hex 32 2>/dev/null || cat /proc/sys/kernel/random/uuid | tr -d '-')
+GATEWAY_TOKEN=$(openssl rand -hex 32)
 
 # --- Создание директорий ---
 echo ""
@@ -66,11 +64,9 @@ mkdir -p /opt/openclaw/workspace
 mkdir -p /opt/openclaw/home
 
 # --- Запись openclaw.json ---
-cat > /opt/openclaw/openclaw.json << JSONEOF
+cat > /opt/openclaw/home/openclaw.json << JSONEOF
 {
-  "meta": {
-    "lastTouchedVersion": "2026.3.12"
-  },
+  "meta": {"lastTouchedVersion": "2026.3.12"},
   "models": {
     "mode": "merge",
     "providers": {
@@ -106,12 +102,7 @@ cat > /opt/openclaw/openclaw.json << JSONEOF
     }
   },
   "tools": {"profile": "full"},
-  "commands": {
-    "native": "auto",
-    "nativeSkills": "auto",
-    "restart": true,
-    "ownerDisplay": "raw"
-  },
+  "commands": {"native": "auto", "nativeSkills": "auto", "restart": true, "ownerDisplay": "raw"},
   "session": {"dmScope": "per-channel-peer"},
   "gateway": {
     "port": 18789,
@@ -121,14 +112,13 @@ cat > /opt/openclaw/openclaw.json << JSONEOF
       "allowedOrigins": ["http://localhost:18789"],
       "dangerouslyDisableDeviceAuth": true
     },
-    "auth": {
-      "mode": "token",
-      "token": "${GATEWAY_TOKEN}"
-    },
+    "auth": {"mode": "token", "token": "${GATEWAY_TOKEN}"},
     "tailscale": {"mode": "off", "resetOnExit": false}
   }
 }
 JSONEOF
+
+chmod 600 /opt/openclaw/home/openclaw.json
 
 # --- Запись BOOTSTRAP.md ---
 cat > /opt/openclaw/workspace/BOOTSTRAP.md << 'MDEOF'
@@ -200,10 +190,6 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_KEY}
       - OPENCLAW_GATEWAY_TOKEN=${GATEWAY_TOKEN}
 COMPOSEEOF
-
-# --- Копирование openclaw.json в home ---
-cp /opt/openclaw/openclaw.json /opt/openclaw/home/openclaw.json
-chmod 600 /opt/openclaw/home/openclaw.json
 
 # --- Запуск ---
 echo -e "${YELLOW}Запускаю OpenClaw...${NC}"
