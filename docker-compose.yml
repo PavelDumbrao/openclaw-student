@@ -1,0 +1,20 @@
+services:
+  openclaw:
+    image: openclaw/openclaw:latest
+    container_name: openclaw-student
+    restart: unless-stopped
+    ports:
+      - "18789:18789"
+    volumes:
+      - openclaw_home:/home/node/.openclaw
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:18789/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  openclaw_home:

@@ -1,0 +1,82 @@
+{
+    "meta": {
+        "lastTouchedVersion": "2026.3.12"
+    },
+    "models": {
+        "mode": "merge",
+        "providers": {
+            "openrouter": {
+                "baseUrl": "https://openrouter.ai/api/v1",
+                "apiKey": "__OPENROUTER_API_KEY__",
+                "api": "openai-completions",
+                "models": [
+                    {
+                        "id": "openrouter/hunter-alpha",
+                        "name": "Hunter Alpha (OpenRouter)",
+                        "reasoning": false,
+                        "input": [
+                            "text"
+                        ],
+                        "cost": {
+                            "input": 0,
+                            "output": 0,
+                            "cacheRead": 0,
+                            "cacheWrite": 0
+                        },
+                        "contextWindow": 128000,
+                        "maxTokens": 8192
+                    }
+                ]
+            }
+        }
+    },
+    "agents": {
+        "defaults": {
+            "model": {
+                "primary": "openrouter/openrouter/hunter-alpha",
+                "fallbacks": []
+            },
+            "models": {
+                "openrouter/openrouter/hunter-alpha": {
+                    "alias": "Hunter Alpha"
+                }
+            },
+            "workspace": "/home/node/.openclaw/workspace",
+            "compaction": {
+                "mode": "safeguard"
+            }
+        }
+    },
+    "tools": {
+        "profile": "full"
+    },
+    "commands": {
+        "native": "auto",
+        "nativeSkills": "auto",
+        "restart": true,
+        "ownerDisplay": "raw"
+    },
+    "session": {
+        "dmScope": "per-channel-peer"
+    },
+    "gateway": {
+        "port": 18789,
+        "mode": "local",
+        "bind": "lan",
+        "controlUi": {
+            "allowedOrigins": [
+                "http://localhost:18789",
+                "http://127.0.0.1:18789"
+            ],
+            "dangerouslyDisableDeviceAuth": true
+        },
+        "auth": {
+            "mode": "token",
+            "token": "__GATEWAY_TOKEN__"
+        },
+        "tailscale": {
+            "mode": "off",
+            "resetOnExit": false
+        }
+    }
+}
