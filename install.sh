@@ -60,68 +60,118 @@ GATEWAY_TOKEN=$(openssl rand -hex 32)
 # --- Создание директорий ---
 echo ""
 echo -e "${YELLOW}Создаю директории...${NC}"
-mkdir -p /opt/openclaw/workspace
-mkdir -p /opt/openclaw/home
+mkdir -p /opt/openclaw
 
-# --- Запись openclaw.json ---
-cat > /opt/openclaw/home/openclaw.json << JSONEOF
+# --- Запись .env ---
+cat > /opt/openclaw/.env << ENVEOF
+OPENCLAW_GATEWAY_TOKEN=${GATEWAY_TOKEN}
+OPENCLAW_GATEWAY_PORT=18789
+OPENROUTER_API_KEY=${OPENROUTER_KEY}
+ENVEOF
+
+chmod 600 /opt/openclaw/.env
+
+# --- Запись docker-compose.yml ---
+cat > /opt/openclaw/docker-compose.yml << 'COMPOSEEOF'
+services:
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw@sha256:c871ddf7ad1b4125218e5f010b59724f0d2bb299714c5bd6ba7c1e99462450a7
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    ports:
+      - "18789:18789"
+    environment:
+      HOME: /home/node
+      NODE_ENV: production
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      OPENCLAW_GATEWAY_PORT: ${OPENCLAW_GATEWAY_PORT:-18789}
+      OPENCLAW_GATEWAY_BIND: lan
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    volumes:
+      - openclaw_home:/home/node/.openclaw
+      - openclaw_workspace:/home/node/.openclaw/workspace
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:18789/health 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    init: true
+
+volumes:
+  openclaw_home:
+    name: openclaw_home
+  openclaw_workspace:
+    name: openclaw_workspace
+COMPOSEEOF
+
+# --- Запуск контейнера ---
+echo -e "${YELLOW}Запускаю OpenClaw...${NC}"
+cd /opt/openclaw
+docker compose pull
+docker compose up -d
+
+# --- Ожидание запуска ---
+echo -e "${YELLOW}Жду запуска (20 сек)...${NC}"
+sleep 20
+
+# --- Запись openclaw.json в volume ---
+docker exec openclaw-gateway sh -c "cat > /home/node/.openclaw/openclaw.json << 'JSONEOF'
 {
-  "meta": {"lastTouchedVersion": "2026.3.12"},
-  "models": {
-    "mode": "merge",
-    "providers": {
-      "openrouter": {
-        "baseUrl": "https://openrouter.ai/api/v1",
-        "apiKey": "${OPENROUTER_KEY}",
-        "api": "openai-completions",
-        "models": [
+  \"meta\": {\"lastTouchedVersion\": \"2026.3.12\"},
+  \"models\": {
+    \"mode\": \"merge\",
+    \"providers\": {
+      \"openrouter\": {
+        \"baseUrl\": \"https://openrouter.ai/api/v1\",
+        \"apiKey\": \"${OPENROUTER_KEY}\",
+        \"api\": \"openai-completions\",
+        \"models\": [
           {
-            "id": "openrouter/hunter-alpha",
-            "name": "Hunter Alpha (OpenRouter)",
-            "reasoning": false,
-            "input": ["text"],
-            "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
-            "contextWindow": 128000,
-            "maxTokens": 8192
+            \"id\": \"openrouter/hunter-alpha\",
+            \"name\": \"Hunter Alpha (OpenRouter)\",
+            \"reasoning\": false,
+            \"input\": [\"text\"],
+            \"cost\": {\"input\": 0, \"output\": 0, \"cacheRead\": 0, \"cacheWrite\": 0},
+            \"contextWindow\": 128000,
+            \"maxTokens\": 8192
           }
         ]
       }
     }
   },
-  "agents": {
-    "defaults": {
-      "model": {
-        "primary": "openrouter/openrouter/hunter-alpha",
-        "fallbacks": []
+  \"agents\": {
+    \"defaults\": {
+      \"model\": {
+        \"primary\": \"openrouter/openrouter/hunter-alpha\",
+        \"fallbacks\": []
       },
-      "models": {
-        "openrouter/openrouter/hunter-alpha": {"alias": "Hunter Alpha"}
+      \"models\": {
+        \"openrouter/openrouter/hunter-alpha\": {\"alias\": \"Hunter Alpha\"}
       },
-      "workspace": "/home/node/.openclaw/workspace",
-      "compaction": {"mode": "safeguard"}
+      \"workspace\": \"/home/node/.openclaw/workspace\",
+      \"compaction\": {\"mode\": \"safeguard\"}
     }
   },
-  "tools": {"profile": "full"},
-  "commands": {"native": "auto", "nativeSkills": "auto", "restart": true, "ownerDisplay": "raw"},
-  "session": {"dmScope": "per-channel-peer"},
-  "gateway": {
-    "port": 18789,
-    "mode": "local",
-    "bind": "lan",
-    "controlUi": {
-      "allowedOrigins": ["http://localhost:18789"],
-      "dangerouslyDisableDeviceAuth": true
+  \"tools\": {\"profile\": \"full\"},
+  \"commands\": {\"native\": \"auto\", \"nativeSkills\": \"auto\", \"restart\": true, \"ownerDisplay\": \"raw\"},
+  \"session\": {\"dmScope\": \"per-channel-peer\"},
+  \"gateway\": {
+    \"port\": 18789,
+    \"mode\": \"local\",
+    \"bind\": \"lan\",
+    \"controlUi\": {
+      \"allowedOrigins\": [\"http://localhost:18789\"],
+      \"dangerouslyDisableDeviceAuth\": true
     },
-    "auth": {"mode": "token", "token": "${GATEWAY_TOKEN}"},
-    "tailscale": {"mode": "off", "resetOnExit": false}
+    \"auth\": {\"mode\": \"token\", \"token\": \"${GATEWAY_TOKEN}\"},
+    \"tailscale\": {\"mode\": \"off\", \"resetOnExit\": false}
   }
 }
-JSONEOF
+JSONEOF"
 
-chmod 600 /opt/openclaw/home/openclaw.json
-
-# --- Запись BOOTSTRAP.md ---
-cat > /opt/openclaw/workspace/BOOTSTRAP.md << 'MDEOF'
+# --- Запись BOOTSTRAP.md в workspace volume ---
+docker exec openclaw-gateway sh -c 'cat > /home/node/.openclaw/workspace/BOOTSTRAP.md << '"'"'MDEOF'"'"'
 # BOOTSTRAP — Первый запуск
 
 Ты только что запустился на новом сервере. Это твой первый запуск.
@@ -172,34 +222,12 @@ cat > /opt/openclaw/workspace/BOOTSTRAP.md << 'MDEOF'
 Что хочешь сделать первым делом, [имя]?»
 
 После этого удали этот файл BOOTSTRAP.md.
-MDEOF
+MDEOF'
 
-# --- Запись docker-compose.yml ---
-cat > /opt/openclaw/docker-compose.yml << COMPOSEEOF
-services:
-  openclaw:
-    image: openclaw/openclaw:latest
-    container_name: openclaw-student
-    restart: unless-stopped
-    ports:
-      - "18789:18789"
-    volumes:
-      - /opt/openclaw/home:/home/node/.openclaw
-      - /opt/openclaw/workspace:/home/node/.openclaw/workspace
-    environment:
-      - OPENROUTER_API_KEY=${OPENROUTER_KEY}
-      - OPENCLAW_GATEWAY_TOKEN=${GATEWAY_TOKEN}
-COMPOSEEOF
-
-# --- Запуск ---
-echo -e "${YELLOW}Запускаю OpenClaw...${NC}"
-cd /opt/openclaw
-docker compose pull
-docker compose up -d
-
-# --- Ожидание запуска ---
-echo -e "${YELLOW}Жду запуска (15 сек)...${NC}"
-sleep 15
+# --- Перезапуск чтобы подхватить конфиг ---
+docker compose restart openclaw-gateway
+echo -e "${YELLOW}Перезапускаю (10 сек)...${NC}"
+sleep 10
 
 # --- Получение IP ---
 SERVER_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
